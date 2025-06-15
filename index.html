@@ -50,7 +50,7 @@
       const key = document.getElementById("key").value;
       if (!data || !key) return alert("Please enter data and key.");
       const encrypted = await encryptData(data, key);
-      const baseUrl = window.location.origin + window.location.pathname.replace("index.html", "view.html");
+      const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, 'view.html');
       const fullUrl = baseUrl + "?data=" + encodeURIComponent(encrypted);
       document.getElementById("qrcode").innerHTML = "";
       new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 256, height: 256 });
