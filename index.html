@@ -4,64 +4,34 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Secure QR Generator</title>
+  <title>Generate Secure QR</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      max-width: 500px;
-      margin: auto;
-      padding: 1em;
-      text-align: center;
-    }
-    textarea, input {
-      width: 100%;
-      margin: 0.5em 0;
-      padding: 0.5em;
-    }
-    #qrcode, #decrypted {
-      margin-top: 20px;
-      word-wrap: break-word;
-    }
+    body { font-family: sans-serif; max-width: 500px; margin: auto; padding: 1em; text-align: center; }
+    textarea, input { width: 100%; margin: 0.5em 0; padding: 0.5em; }
+    #qrcode { margin-top: 20px; }
   </style>
 </head>
 <body>
-  <h2>Secure QR Code Generator</h2>
-
+  <h2>Encrypt and Generate QR</h2>
   <textarea id="data" rows="4" placeholder="Enter container content or details"></textarea>
   <input type="text" id="key" placeholder="Enter shared key (e.g., UID + secret)">
-  <button onclick="encryptAndGenerateQR()">Encrypt & Generate QR</button>
-
+  <button onclick="encryptAndGenerateLink()">Generate QR</button>
   <div id="qrcode"></div>
-
-  <h3>Decrypt QR Data</h3>
-  <input type="text" id="scanData" placeholder="Paste scanned QR data here">
-  <input type="text" id="keyDecrypt" placeholder="Enter same shared key">
-  <button onclick="decryptQRData()">Decrypt</button>
-  <div id="decrypted"></div>
 
   <script>
     async function getKeyMaterial(password) {
-      const enc = new TextEncoder();
-      return crypto.subtle.importKey(
-        "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]
-      );
+      return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
     }
 
     async function deriveKey(password) {
       const keyMaterial = await getKeyMaterial(password);
-      return crypto.subtle.deriveKey(
-        {
-          name: "PBKDF2",
-          salt: new TextEncoder().encode("fixed-salt"),
-          iterations: 100000,
-          hash: "SHA-256"
-        },
-        keyMaterial,
-        { name: "AES-GCM", length: 256 },
-        false,
-        ["encrypt", "decrypt"]
-      );
+      return crypto.subtle.deriveKey({
+        name: "PBKDF2",
+        salt: new TextEncoder().encode("fixed-salt"),
+        iterations: 100000,
+        hash: "SHA-256"
+      }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
     }
 
     async function encryptData(data, password) {
@@ -69,44 +39,21 @@
       const key = await deriveKey(password);
       const encoded = new TextEncoder().encode(data);
       const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-      const combined = new Uint8Array(iv.byteLength + cipher.byteLength);
+      const combined = new Uint8Array(iv.length + cipher.byteLength);
       combined.set(iv, 0);
-      combined.set(new Uint8Array(cipher), iv.byteLength);
+      combined.set(new Uint8Array(cipher), iv.length);
       return btoa(String.fromCharCode(...combined));
     }
 
-    async function decryptData(base64, password) {
-      const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const iv = data.slice(0, 12);
-      const encData = data.slice(12);
-      const key = await deriveKey(password);
-      const plainBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encData);
-      return new TextDecoder().decode(plainBuffer);
-    }
-
-    async function encryptAndGenerateQR() {
+    async function encryptAndGenerateLink() {
       const data = document.getElementById("data").value;
       const key = document.getElementById("key").value;
-      if (!data || !key) return alert("Enter both data and key.");
+      if (!data || !key) return alert("Please enter data and key.");
       const encrypted = await encryptData(data, key);
+      const baseUrl = window.location.origin + window.location.pathname.replace("index.html", "view.html");
+      const fullUrl = baseUrl + "?data=" + encodeURIComponent(encrypted);
       document.getElementById("qrcode").innerHTML = "";
-      new QRCode(document.getElementById("qrcode"), {
-        text: encrypted,
-        width: 256,
-        height: 256
-      });
-    }
-
-    async function decryptQRData() {
-      const encrypted = document.getElementById("scanData").value;
-      const key = document.getElementById("keyDecrypt").value;
-      if (!encrypted || !key) return alert("Enter encrypted data and key.");
-      try {
-        const decrypted = await decryptData(encrypted, key);
-        document.getElementById("decrypted").innerText = decrypted;
-      } catch (e) {
-        alert("Failed to decrypt. Check key or data.");
-      }
+      new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 256, height: 256 });
     }
   </script>
 </body>
