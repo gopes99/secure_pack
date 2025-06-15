@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Register Face ID</title>
+</head>
+<body>
+  <h2>Register Your Face ID Credential</h2>
+  <button onclick="register()">Register Face ID</button>
+  <pre id="output"></pre>
+
+  <script>
+    async function register() {
+      const userId = crypto.getRandomValues(new Uint8Array(16));
+
+      const publicKeyOptions = {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: "SecurePack" },
+        user: {
+          id: userId,
+          name: "user@example.com",  // Optional, for display
+          displayName: "Secure User"
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 }, // ES256
+        ],
+        authenticatorSelection: {
+          userVerification: "required",  // Forces Face ID / biometrics
+          authenticatorAttachment: "platform"  // Use built-in biometric
+        },
+        timeout: 60000,
+        attestation: "none"
+      };
+
+      try {
+        const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
+        const credId = arrayBufferToBase64(credential.rawId);
+        document.getElementById("output").innerText =
+          "Registration successful!\n\nCredential ID:\n" + credId + "\n\nCopy this and add it to your allowlist.";
+      } catch (err) {
+        document.getElementById("output").innerText = "Registration failed:\n" + err;
+      }
+    }
+
+    function arrayBufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+  </script>
+</body>
+</html>
