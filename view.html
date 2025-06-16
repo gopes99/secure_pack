@@ -21,6 +21,11 @@
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const encryptedData = urlParams.get("data");
+    const allowedCredentialIds = [
+                                    "7DBAU7Q95Tx7GT3TLcrfAJxXEIA",
+                                    "0ROJC+nos+nvygnz9y6YTHEeyQw="
+                                  ];
+
 
     if (!encryptedData) {
       document.body.innerHTML = "<p style='color:red'>No encrypted data found in URL.</p>";
