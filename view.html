@@ -48,6 +48,8 @@
 
       } catch (err) {
         document.getElementById("output").textContent = "Authentication failed: " + err.message;
+        console.log("Credential ID used:", arrayBufferToBase64(credential.rawId));
+        console.log("Allowed IDs:", allowedCredentialIds);
       }
     })();
 
