@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Face ID Test</title>
+</head>
+<body>
+  <h2>Face ID Auth Test</h2>
+  <button onclick="auth()">Authenticate</button>
+  <pre id="out"></pre>
+
+  <script>
+    const allowedCredentialIds = [
+      // Paste your registered credential here (base64)
+      "PasteYourCredentialIDHere"
+    ].map(b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+
+    async function auth() {
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        allowCredentials: allowedCredentialIds.map(id => ({
+          type: "public-key",
+          id,
+          transports: ["internal"]
+        })),
+        userVerification: "required",
+        timeout: 60000
+      };
+
+      try {
+        const cred = await navigator.credentials.get({ publicKey });
+        const id = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+        document.getElementById("out").innerText = "Credential Used:\n" + id;
+      } catch (err) {
+        document.getElementById("out").innerText = "Error:\n" + err;
+      }
+    }
+  </script>
+</body>
+</html>
