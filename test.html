@@ -4,24 +4,23 @@
   <title>Face ID Auth Test</title>
 </head>
 <body>
-  <h2>Face ID Auth Test</h2>
+  <h2>Test Face ID</h2>
   <button onclick="auth()">Authenticate</button>
   <pre id="out"></pre>
 
   <script>
     const allowedCredentialIds = [
-      // ✅ Replace this with your real credential ID from register.html
-      "PasteYourCredentialIDHere"
+      // Replace with your real credential ID (Base64 from register.html)
+      "i4lWVV6ph2bsAe7OWhoPuNIPujY="
     ];
 
-    function base64ToArrayBuffer(b64) {
-      const binary = atob(b64);
-      const len = binary.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
         bytes[i] = binary.charCodeAt(i);
       }
-      return bytes.buffer; // <-- Important: return the buffer, not the view
+      return bytes.buffer;
     }
 
     function arrayBufferToBase64(buffer) {
@@ -31,7 +30,7 @@
     async function auth() {
       const allowCredentials = allowedCredentialIds.map(id => ({
         type: "public-key",
-        id: base64ToArrayBuffer(id), // ✅ Properly parsed
+        id: base64ToArrayBuffer(id),
         transports: ["internal"]
       }));
 
@@ -39,22 +38,22 @@
         challenge: new Uint8Array(32),
         allowCredentials,
         userVerification: "required",
+        authenticatorSelection: {
+          authenticatorAttachment: "platform"
+        },
         timeout: 60000
       };
 
       try {
-        const cred = await navigator.credentials.get({ publicKey });
-        const usedId = arrayBufferToBase64(cred.rawId).trim();
+        const credential = await navigator.credentials.get({ publicKey });
+        const usedId = arrayBufferToBase64(credential.rawId).trim();
 
         const matchFound = allowedCredentialIds.some(id => id.trim() === usedId);
-        if (matchFound) {
-          document.getElementById("out").innerText =
-            "✅ Access Granted\n\nUsed Credential:\n" + usedId;
-        } else {
-          document.getElementById("out").innerText =
-            "❌ Access Denied\n\nUsed Credential:\n" + usedId +
-            "\n\nAllowed Credentials:\n" + allowedCredentialIds.join("\n");
-        }
+
+        document.getElementById("out").innerText = matchFound
+          ? "✅ Access Granted\n\nCredential Used:\n" + usedId
+          : "❌ Access Denied\n\nCredential Used:\n" + usedId +
+            "\n\nAllowed:\n" + allowedCredentialIds.join("\n");
       } catch (err) {
         document.getElementById("out").innerText = "❌ Authentication failed:\n" + err;
       }
