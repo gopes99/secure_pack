@@ -1,59 +1,78 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generate Secure QR</title>
+  <title>SecurePack - Create QR</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <style>
-    body { font-family: sans-serif; max-width: 500px; margin: auto; padding: 1em; text-align: center; }
-    textarea, input { width: 100%; margin: 0.5em 0; padding: 0.5em; }
-    #qrcode { margin-top: 20px; }
-  </style>
 </head>
 <body>
-  <h2>Encrypt and Generate QR</h2>
-  <textarea id="data" rows="4" placeholder="Enter container content or details"></textarea>
-  <input type="text" id="key" placeholder="Enter shared key (e.g., UID + secret)">
-  <button onclick="encryptAndGenerateLink()">Generate QR</button>
-  <div id="qrcode"></div>
+  <h2>Secure QR Generator (Face ID)</h2>
+
+  <textarea id="data" placeholder="Enter container content here" rows="6" cols="40"></textarea><br><br>
+  <button onclick="encryptAndGenerateLink()">Generate QR (Face ID)</button>
+
+  <div id="qrcode" style="margin-top:20px;"></div>
+  <pre id="output"></pre>
 
   <script>
-    async function getKeyMaterial(password) {
-      return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
-    }
-
-    async function deriveKey(password) {
-      const keyMaterial = await getKeyMaterial(password);
-      return crypto.subtle.deriveKey({
-        name: "PBKDF2",
-        salt: new TextEncoder().encode("fixed-salt"),
-        iterations: 100000,
-        hash: "SHA-256"
-      }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-    }
-
-    async function encryptData(data, password) {
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const key = await deriveKey(password);
-      const encoded = new TextEncoder().encode(data);
-      const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-      const combined = new Uint8Array(iv.length + cipher.byteLength);
-      combined.set(iv, 0);
-      combined.set(new Uint8Array(cipher), iv.length);
-      return btoa(String.fromCharCode(...combined));
-    }
+    const allowedCredentialIds = [
+      // Optional: can be empty here, since we're just encrypting
+    ];
 
     async function encryptAndGenerateLink() {
-      const data = document.getElementById("data").value;
-      const key = document.getElementById("key").value;
-      if (!data || !key) return alert("Please enter data and key.");
-      const encrypted = await encryptData(data, key);
+      const plaintext = document.getElementById("data").value;
+      if (!plaintext) return alert("Enter some data first.");
+
+      let credential;
+      try {
+        credential = await navigator.credentials.get({
+          publicKey: {
+            challenge: new Uint8Array(32),
+            allowCredentials: [], // allow any
+            userVerification: "required",
+          }
+        });
+      } catch (err) {
+        return alert("Authentication failed: " + err.message);
+      }
+
+      const rawId = credential.rawId;
+      const key = await deriveKey(rawId);
+      const encrypted = await encryptAES(plaintext, key);
+
       const baseUrl = "https://gopes99.github.io/secure_pack/view.html";
-      const fullUrl = baseUrl + "?data=" + encodeURIComponent(encrypted);
-      document.getElementById("qrcode").innerHTML = "";
-      new QRCode(document.getElementById("qrcode"), { text: fullUrl, width: 256, height: 256 });
+      const url = `${baseUrl}?data=${encodeURIComponent(encrypted)}`;
+
+      new QRCode(document.getElementById("qrcode"), {
+        text: url, width: 256, height: 256
+      });
+
+      document.getElementById("output").textContent = "QR Code generated.\n\n" + url;
+    }
+
+    async function deriveKey(rawId) {
+      const keyMaterial = await window.crypto.subtle.importKey(
+        "raw", rawId, "HKDF", false, ["deriveKey"]
+      );
+      return await window.crypto.subtle.deriveKey({
+        name: "HKDF",
+        hash: "SHA-256",
+        salt: new Uint8Array(16), // static salt, optional change
+        info: new TextEncoder().encode("SecurePack AES Key")
+      }, keyMaterial, {
+        name: "AES-GCM",
+        length: 256
+      }, false, ["encrypt", "decrypt"]);
+    }
+
+    async function encryptAES(plaintext, key) {
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const encoded = new TextEncoder().encode(plaintext);
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv }, key, encoded
+      );
+      const fullData = new Uint8Array([...iv, ...new Uint8Array(ciphertext)]);
+      return btoa(String.fromCharCode(...fullData));
     }
   </script>
 </body>
