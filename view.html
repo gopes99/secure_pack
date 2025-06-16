@@ -38,7 +38,7 @@
         const credIdBase64 = arrayBufferToBase64(rawId);
 
         if (!allowedCredentialIds.includes(credIdBase64)) {
-          document.getElementById("output").textContent = "Access denied: unrecognized credential.";
+          document.getElementById("output").textContent = "Access denied: unrecognized credential ."arrayBufferToBase64(credential.rawId) "Allowed:" allowedCredentialsIds;
           console.log("Credential ID used:", arrayBufferToBase64(credential.rawId));
           console.log("Allowed IDs:", allowedCredentialIds);
           return;
