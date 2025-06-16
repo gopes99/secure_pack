@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Face ID Test</title>
+  <title>Face ID Auth Test</title>
 </head>
 <body>
   <h2>Face ID Auth Test</h2>
@@ -10,18 +10,28 @@
 
   <script>
     const allowedCredentialIds = [
-      // Replace this with your real credential ID from register.html
+      // ✅ Replace this with your real credential ID from register.html
       "PasteYourCredentialIDHere"
     ];
 
-    function base64ToBytes(b64) {
-      return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    function base64ToArrayBuffer(b64) {
+      const binary = atob(b64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer; // <-- Important: return the buffer, not the view
+    }
+
+    function arrayBufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
     }
 
     async function auth() {
       const allowCredentials = allowedCredentialIds.map(id => ({
         type: "public-key",
-        id: base64ToBytes(id),
+        id: base64ToArrayBuffer(id), // ✅ Properly parsed
         transports: ["internal"]
       }));
 
@@ -34,10 +44,9 @@
 
       try {
         const cred = await navigator.credentials.get({ publicKey });
-        const usedId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+        const usedId = arrayBufferToBase64(cred.rawId).trim();
 
-        const matchFound = allowedCredentialIds.some(id => id.trim() === usedId.trim());
-
+        const matchFound = allowedCredentialIds.some(id => id.trim() === usedId);
         if (matchFound) {
           document.getElementById("out").innerText =
             "✅ Access Granted\n\nUsed Credential:\n" + usedId;
