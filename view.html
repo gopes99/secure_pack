@@ -1,68 +1,89 @@
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>View Container Data</title>
-  <style>
-    body { font-family: sans-serif; max-width: 500px; margin: auto; padding: 1em; text-align: center; }
-    input { width: 100%; margin: 0.5em 0; padding: 0.5em; }
-    #decrypted { margin-top: 20px; word-wrap: break-word; }
-  </style>
+  <title>SecurePack - View Container</title>
 </head>
 <body>
-  <h2>Decrypt Container Info</h2>
-  <p>Encrypted data was found in the URL. Enter the shared key to decrypt:</p>
-  <input type="text" id="key" placeholder="Enter shared key">
-  <button onclick="decryptNow()">Decrypt</button>
-  <div id="decrypted"></div>
+  <h2>Secure QR Viewer (Face ID)</h2>
+  <div id="output">Authenticating...</div>
 
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const encryptedData = urlParams.get("data");
+    // Base64-encoded credential IDs allowed to access content
     const allowedCredentialIds = [
-                                    "7DBAU7Q95Tx7GT3TLcrfAJxXEIA",
-                                    "0ROJC+nos+nvygnz9y6YTHEeyQw="
-                                  ];
+      "7DBAU7Q95Tx7GT3TLcrfAJxXEIA",
+      "0ROJC+nos+nvygnz9y6YTHEeyQw="
+    ];
 
-
-    if (!encryptedData) {
-      document.body.innerHTML = "<p style='color:red'>No encrypted data found in URL.</p>";
-    }
-
-    async function getKeyMaterial(password) {
-      return crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
-    }
-
-    async function deriveKey(password) {
-      const keyMaterial = await getKeyMaterial(password);
-      return crypto.subtle.deriveKey({
-        name: "PBKDF2",
-        salt: new TextEncoder().encode("fixed-salt"),
-        iterations: 100000,
-        hash: "SHA-256"
-      }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-    }
-
-    async function decryptData(base64, password) {
-      const data = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const iv = data.slice(0, 12);
-      const encData = data.slice(12);
-      const key = await deriveKey(password);
-      const plainBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encData);
-      return new TextDecoder().decode(plainBuffer);
-    }
-
-    async function decryptNow() {
-      const key = document.getElementById("key").value;
-      if (!key) return alert("Please enter the shared key.");
-      try {
-        const decrypted = await decryptData(encryptedData, key);
-        document.getElementById("decrypted").innerText = decrypted;
-      } catch (e) {
-        alert("Failed to decrypt. Check the key.");
+    (async function authenticateAndDecrypt() {
+      const encryptedData = new URLSearchParams(window.location.search).get("data");
+      if (!encryptedData) {
+        document.getElementById("output").textContent = "No data found in URL.";
+        return;
       }
+
+      try {
+        const credential = await navigator.credentials.get({
+          publicKey: {
+            challenge: new Uint8Array(32),
+            allowCredentials: allowedCredentialIds.map(id => ({
+              type: "public-key",
+              id: base64ToBuffer(id)
+            })),
+            userVerification: "required"
+          }
+        });
+
+        const rawId = credential.rawId;
+        const credIdBase64 = arrayBufferToBase64(rawId);
+
+        if (!allowedCredentialIds.includes(credIdBase64)) {
+          document.getElementById("output").textContent = "Access denied: unrecognized credential.";
+          return;
+        }
+
+        const key = await deriveKey(rawId);
+        const decrypted = await decryptAES(encryptedData, key);
+        document.getElementById("output").textContent = "Container Contents:\n\n" + decrypted;
+
+      } catch (err) {
+        document.getElementById("output").textContent = "Authentication failed: " + err.message;
+      }
+    })();
+
+    function base64ToBuffer(base64) {
+      const binary = atob(base64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes.buffer;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+
+    async function deriveKey(rawId) {
+      const keyMaterial = await window.crypto.subtle.importKey(
+        "raw", rawId, "HKDF", false, ["deriveKey"]
+      );
+      return await window.crypto.subtle.deriveKey({
+        name: "HKDF",
+        hash: "SHA-256",
+        salt: new Uint8Array(16), // Same static salt as index.html
+        info: new TextEncoder().encode("SecurePack AES Key")
+      }, keyMaterial, {
+        name: "AES-GCM",
+        length: 256
+      }, false, ["encrypt", "decrypt"]);
+    }
+
+    async function decryptAES(encoded, key) {
+      const raw = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+      const iv = raw.slice(0, 12);
+      const data = raw.slice(12);
+      const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+      return new TextDecoder().decode(decrypted);
     }
   </script>
 </body>
