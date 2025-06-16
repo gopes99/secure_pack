@@ -2,62 +2,22 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>SecurePack - View Container</title>
+  <title>SecurePack - View</title>
 </head>
 <body>
-  <h2>Secure QR Viewer (Face ID)</h2>
-  <div id="output">Authenticating...</div>
+  <h2>Container Contents</h2>
+  <div id="content" style="white-space: pre-wrap;"></div>
+  <pre id="out"></pre>
 
   <script>
-    // Base64-encoded credential IDs allowed to access content
     const allowedCredentialIds = [
-      "7DBAU7Q95Tx7GT3TLcrfAJxXEIA",
-      "0ROJC+nos+nvygnz9y6YTHEeyQw="
+      "PASTE_YOUR_CREDENTIAL_ID_HERE"
     ];
 
-    (async function authenticateAndDecrypt() {
-      const encryptedData = new URLSearchParams(window.location.search).get("data");
-      if (!encryptedData) {
-        document.getElementById("output").textContent = "No data found in URL.";
-        return;
-      }
-
-      try {
-        const credential = await navigator.credentials.get({
-          publicKey: {
-            challenge: new Uint8Array(32),
-            allowCredentials: allowedCredentialIds.map(id => ({
-              type: "public-key",
-              id: base64ToBuffer(id)
-            })),
-            userVerification: "required"
-          }
-        });
-
-        const rawId = credential.rawId;
-        const credIdBase64 = arrayBufferToBase64(rawId);
-
-        if (!allowedCredentialIds.includes(credIdBase64)) {
-          document.getElementById("output").textContent = "Access denied: unrecognized credential ."arrayBufferToBase64(credential.rawId) "Allowed:" allowedCredentialsIds;
-          return;
-        }
-
-        const key = await deriveKey(rawId);
-        const decrypted = await decryptAES(encryptedData, key);
-        document.getElementById("output").textContent = "Container Contents:\n\n" + decrypted;
-
-      } catch (err) {
-        document.getElementById("output").textContent = "Authentication failed: " + err.message;
-        alert("Credential used:\n" + arrayBufferToBase64(credential.rawId));
-        alert("Allowed:\n" + allowedCredentialIds.join("\n"));
-      }
-    })();
-
-    function base64ToBuffer(base64) {
+    function base64ToArrayBuffer(base64) {
       const binary = atob(base64);
-      const len = binary.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return bytes.buffer;
     }
 
@@ -65,28 +25,63 @@
       return btoa(String.fromCharCode(...new Uint8Array(buffer)));
     }
 
-    async function deriveKey(rawId) {
-      const keyMaterial = await window.crypto.subtle.importKey(
-        "raw", rawId, "HKDF", false, ["deriveKey"]
+    async function decryptData(encrypted, key) {
+      const [saltB64, ivB64, cipherB64] = encrypted.split(".");
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey(
+        "raw", enc.encode(key), "PBKDF2", false, ["deriveKey"]
       );
-      return await window.crypto.subtle.deriveKey({
-        name: "HKDF",
-        hash: "SHA-256",
-        salt: new Uint8Array(16), // Same static salt as index.html
-        info: new TextEncoder().encode("SecurePack AES Key")
-      }, keyMaterial, {
-        name: "AES-GCM",
-        length: 256
-      }, false, ["encrypt", "decrypt"]);
-    }
-
-    async function decryptAES(encoded, key) {
-      const raw = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
-      const iv = raw.slice(0, 12);
-      const data = raw.slice(12);
-      const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+      const derivedKey = await crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt: base64ToArrayBuffer(saltB64), iterations: 100000, hash: "SHA-256" },
+        keyMaterial,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["decrypt"]
+      );
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: base64ToArrayBuffer(ivB64) },
+        derivedKey,
+        base64ToArrayBuffer(cipherB64)
+      );
       return new TextDecoder().decode(decrypted);
     }
+
+    async function authenticateAndDecrypt() {
+      const params = new URLSearchParams(location.search);
+      const encrypted = params.get("data");
+      if (!encrypted) return;
+
+      const allowCredentials = allowedCredentialIds.map(id => ({
+        type: "public-key",
+        id: base64ToArrayBuffer(id),
+        transports: ["internal"]
+      }));
+
+      const publicKey = {
+        challenge: new Uint8Array(32),
+        allowCredentials,
+        userVerification: "required",
+        timeout: 60000
+      };
+
+      try {
+        const cred = await navigator.credentials.get({ publicKey });
+        const usedId = arrayBufferToBase64(cred.rawId).trim();
+        const matched = allowedCredentialIds.includes(usedId);
+
+        if (!matched) {
+          document.getElementById("out").innerText = "❌ Access Denied";
+          return;
+        }
+
+        const decrypted = await decryptData(encrypted, usedId);
+        document.getElementById("content").innerText = decrypted;
+      } catch (err) {
+        document.getElementById("out").innerText = "❌ Authentication failed:\n" + err;
+      }
+    }
+
+    authenticateAndDecrypt();
   </script>
 </body>
 </html>
