@@ -10,28 +10,44 @@
 
   <script>
     const allowedCredentialIds = [
-      "7DBAU7Q95Tx7GT3TLcrfAJxXEIA",
-      "0ROJC+nos+nvygnz9y6YTHEeyQw="
-    ].map(b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+      // Replace this with your real credential ID from register.html
+      "PasteYourCredentialIDHere"
+    ];
+
+    function base64ToBytes(b64) {
+      return Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    }
 
     async function auth() {
+      const allowCredentials = allowedCredentialIds.map(id => ({
+        type: "public-key",
+        id: base64ToBytes(id),
+        transports: ["internal"]
+      }));
+
       const publicKey = {
         challenge: new Uint8Array(32),
-        allowCredentials: allowedCredentialIds.map(id => ({
-          type: "public-key",
-          id,
-          transports: ["internal"]
-        })),
+        allowCredentials,
         userVerification: "required",
         timeout: 60000
       };
 
       try {
         const cred = await navigator.credentials.get({ publicKey });
-        const id = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-        document.getElementById("out").innerText = "Credential Used:\n" + id;
+        const usedId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+
+        const matchFound = allowedCredentialIds.some(id => id.trim() === usedId.trim());
+
+        if (matchFound) {
+          document.getElementById("out").innerText =
+            "✅ Access Granted\n\nUsed Credential:\n" + usedId;
+        } else {
+          document.getElementById("out").innerText =
+            "❌ Access Denied\n\nUsed Credential:\n" + usedId +
+            "\n\nAllowed Credentials:\n" + allowedCredentialIds.join("\n");
+        }
       } catch (err) {
-        document.getElementById("out").innerText = "Error:\n" + err;
+        document.getElementById("out").innerText = "❌ Authentication failed:\n" + err;
       }
     }
   </script>
