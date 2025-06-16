@@ -8,6 +8,9 @@
 <body>
   <h2>Generate Encrypted QR</h2>
   <div id="form" style="display:none;">
+    
+    <button onclick="startAuth()">Authenticate with Face ID</button>
+
     <textarea id="data" placeholder="Enter container contents" rows="5" cols="40"></textarea><br>
     <button onclick="generate()">Generate QR</button><br><br>
     <div id="qrcode"></div>
