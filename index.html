@@ -60,7 +60,8 @@
 
   <!-- Form will appear after successful authentication -->
   <div id="form" style="display:none;">
-    <textarea id="data" placeholder="Enter container contents" rows="5" cols="40"></textarea><br>
+    <textarea id="data1" placeholder="Enter Container Number" rows="1" cols="40"></textarea><br>
+    <textarea id="data2" placeholder="Enter Container Contents" rows="5" cols="40"></textarea><br>
     <button onclick="generate()">Generate QR</button><br><br>
     <div id="qrcode"></div>
   </div>
@@ -136,11 +137,12 @@
     }
 
     async function generate() {
-      const data = document.getElementById("data").value;
+      const box_id = document.getElementById("data1").value;
+      const contents = document.getElementById("data2").value;
       const key = allowedCredentialIds[0]; // Using credential ID as symmetric key
-      const encrypted = await encryptData(data, key);
+      const encrypted = await encryptData(contents, key);
       const url = "https://gopes99.github.io/secure_pack/view.html?data=" + encodeURIComponent(encrypted);
-      document.getElementById("qrcode").innerHTML = "";
+      document.getElementById("qrcode").innerHTML = box_id;
       new QRCode(document.getElementById("qrcode"), {
         text: url,
         width: 256,
